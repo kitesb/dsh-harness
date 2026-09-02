@@ -740,3 +740,57 @@ describe('review fixes: assistant content shapes', () => {
     expect(wire[0]).toMatchObject({ content: '' })
   })
 })
+
+describe('malformed tool-call filtering', () => {
+  it('drops an assistant tool-call whose id or name is empty', () => {
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: 'thinking…' },
+          { type: 'tool-call', id: ToolCallId(''), name: 'pwsh', arguments: '{"command":"x"}' },
+          { type: 'tool-call', id: ToolCallId('c'), name: '', arguments: '{}' },
+          { type: 'tool-call', id: ToolCallId('ok'), name: 'read', arguments: '{}' },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+    expect(wire).toEqual([{
+      role: 'assistant',
+      content: '',
+      reasoning_content: 'thinking…',
+      tool_calls: [{ id: 'ok', type: 'function', function: { name: 'read', arguments: '{}' } }],
+    }])
+  })
+
+  it('drops a tool result whose tool_call_id is empty', () => {
+    const wire = serializeMessages([
+      createUserMessage({
+        content: [
+          { type: 'tool-result', toolCallId: ToolCallId(''), content: [{ type: 'text', text: 'Error: unknown tool ""' }] },
+          { type: 'tool-result', toolCallId: ToolCallId('call-1'), content: [{ type: 'text', text: 'ok' }] },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+    expect(wire).toEqual([
+      { role: 'tool', tool_call_id: 'call-1', content: 'ok' },
+    ])
+  })
+
+  it('drops an empty tool_call_id result on the image-capable path', async () => {
+    const wire = await serializeMessagesWithImages([
+      createUserMessage({
+        content: [
+          { type: 'tool-result', toolCallId: ToolCallId(''), content: [{ type: 'text', text: 'boom' }] },
+          { type: 'tool-result', toolCallId: ToolCallId('kept'), content: [{ type: 'text', text: 'kept' }] },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ], imageOptions([], fileResolver()))
+
+    expect(wire).toEqual([
+      { role: 'tool', tool_call_id: 'kept', content: 'kept' },
+    ])
+  })
+})

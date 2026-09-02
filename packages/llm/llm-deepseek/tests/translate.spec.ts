@@ -328,7 +328,7 @@ describe('mapUsage', () => {
 })
 
 describe('translate: defensive tool-call branches', () => {
-  it('handles deltas that never carry id or name (empty-string fallbacks)', async () => {
+  it('degrades a tool call that never carried id or name to a text block', async () => {
     const chunks = await collect(translate(feed(
       firstChunk,
       // Hypothetical lenient wire: argument fragments with no id/name at all.
@@ -339,7 +339,7 @@ describe('translate: defensive tool-call branches', () => {
     expect(chunks).toEqual([
       { type: 'block-start', index: 0, blockType: 'tool-call' },
       { type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' },
-      { type: 'block-end', index: 0, block: { type: 'tool-call', id: '', name: '', arguments: '{}' } },
+      { type: 'block-end', index: 0, block: { type: 'text', text: '{}' } },
       { type: 'finish', reason: { kind: 'tool-calls' } },
     ])
   })
@@ -352,6 +352,33 @@ describe('translate: defensive tool-call branches', () => {
       DONE,
     )))
     expect(chunks[1]).toEqual({ type: 'tool-call-delta', index: 0, id: 'c', name: 'f', argumentsDelta: '' })
+  })
+
+  it('keeps the first non-empty id/name when later deltas re-send empty strings', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_abc', type: 'function', function: { name: 'glob', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: '', function: { name: '', arguments: '{"pattern":"*"}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    expect(chunks.filter(c => c.type === 'block-end')[0]).toEqual({
+      type: 'block-end', index: 0,
+      block: { type: 'tool-call', id: 'call_abc', name: 'glob', arguments: '{"pattern":"*"}' },
+    })
+  })
+
+  it('still degrades when the only id/name ever seen is empty', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: '', function: { name: '', arguments: '{}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    expect(chunks.filter(c => c.type === 'block-end')[0]).toEqual({
+      type: 'block-end', index: 0,
+      block: { type: 'text', text: '{}' },
+    })
   })
 
   it('handles tool_call deltas with no function object at all', async () => {

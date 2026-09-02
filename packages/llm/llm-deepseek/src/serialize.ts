@@ -207,7 +207,8 @@ function serializeAssistant(message: Message): WireMessage {
     .map(block => block.text)
     .join('')
   const toolCalls = message.content
-    .filter(block => block.type === 'tool-call')
+    .filter((block): block is Extract<ContentBlock, { type: 'tool-call' }> =>
+      block.type === 'tool-call' && block.id !== '' && block.name !== '')
     .map(block => ({
       id: block.id,
       type: 'function' as const,
@@ -257,7 +258,11 @@ export function serializeMessages(messages: Message[]): WireMessage[] {
     }
     // user role: tool results ride in user messages in the harness
     // vocabulary, but DeepSeek wants them as role:'tool' messages.
-    const toolResults = message.content.filter(block => block.type === 'tool-result')
+    // Empty tool_call_id results (from a model call that streamed no id) are
+    // dropped here — the API rejects a missing/empty tool_call_id, and the
+    // matching assistant tool_calls are filtered in serializeAssistant.
+    const toolResults = message.content.filter((block): block is Extract<ContentBlock, { type: 'tool-result' }> =>
+      block.type === 'tool-result' && block.toolCallId !== '')
     const text = flattenText(message.content)
     if (text.length > 0 || toolResults.length === 0) {
       wire.push({ role: 'user', content: text })
@@ -313,7 +318,7 @@ export async function serializeMessagesWithImages(
 
     const regular = message.content.filter(block => block.type !== 'tool-result')
     const toolResults = message.content.filter((block): block is Extract<ContentBlock, { type: 'tool-result' }> => (
-      block.type === 'tool-result'
+      block.type === 'tool-result' && block.toolCallId !== ''
     ))
     const content = userContent(await contentParts(regular, images, messageIndex + 1, nextImage))
     if (content.length > 0 || toolResults.length === 0) {

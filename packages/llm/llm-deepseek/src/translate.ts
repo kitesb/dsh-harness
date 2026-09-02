@@ -91,11 +91,23 @@ function closeBlock(block: OpenBlock): ContentBlock {
   switch (block.kind) {
     case 'text': return { type: 'text', text: block.text }
     case 'reasoning': return { type: 'reasoning', text: block.text }
-    case 'tool-call': return {
-      type: 'tool-call',
-      id: brandString<ToolCallId>(block.callId ?? ''),
-      name: block.name ?? '',
-      arguments: block.text,
+    case 'tool-call': {
+      // A tool call whose wire deltas never carried an id or a name cannot be
+      // correlated with a result, so it is not a tool call at all — the model
+      // streamed the JSON body but dropped the call metadata. Degrade it to a
+      // text block so the harness neither executes an unknown tool nor persists
+      // an empty tool_call_id that a later turn would replay to the API (which
+      // rejects that history with "missing messages.tool_call_id" and
+      // "tool-call received more than one start Match").
+      if (block.callId === undefined || block.callId === '' || block.name === undefined || block.name === '') {
+        return { type: 'text', text: block.text }
+      }
+      return {
+        type: 'tool-call',
+        id: brandString<ToolCallId>(block.callId),
+        name: block.name,
+        arguments: block.text,
+      }
     }
   }
 }
