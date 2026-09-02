@@ -560,7 +560,12 @@ export class LocalSandboxProvider extends SandboxProvider {
     const builtEntry = this.internals.windowsAclRunnerEntry ?? fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/runner'))
     if (existsSync(builtEntry)) return [process.execPath, builtEntry]
     const sourceEntry = fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/src/runner.ts'))
-    return [process.execPath, '--import', 'tsx/esm', sourceEntry]
+    // `import.meta.resolve` returns a file:// URL — pass it directly to `--import`
+    // so Node resolves it regardless of the child process's cwd. A bare specifier
+    // (`tsx/esm`) would fail when the child's cwd is outside the repo, and a
+    // Windows absolute path (`D:\...`) would be parsed as URL protocol `d:`.
+    const tsxUrl = import.meta.resolve('tsx/esm')
+    return [process.execPath, '--import', tsxUrl, sourceEntry]
   }
 }
 
