@@ -426,7 +426,12 @@ describe('the windows-acl probe (runner invocation contract)', () => {
       windowsAclRunnerEntry: absentRunnerEntry(),
     })
     const confined = sandbox.confine(['true'], RO)
-    expect(confined.argv.slice(0, 3)).toEqual([process.execPath, '--import', 'tsx/esm'])
+    // The `--import` value must be a URL a child process resolves independently of
+    // its cwd: a bare specifier only works inside the repo, and a Windows absolute
+    // path is parsed as URL protocol `d:` (ERR_UNSUPPORTED_ESM_URL_SCHEME).
+    expect(confined.argv.slice(0, 2)).toEqual([process.execPath, '--import'])
+    expect(confined.argv[2]).toMatch(/^file:\/\//u)
+    expect(confined.argv[2]).toMatch(/tsx[\\/]dist[\\/]esm[\\/]index\.mjs$/u)
     expect(confined.argv[3]).toMatch(/runner\.ts$/)
   })
 
