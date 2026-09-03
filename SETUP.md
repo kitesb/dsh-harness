@@ -55,6 +55,7 @@ git push -u origin master                           # 需 danger-full-access（�
   pnpm run build:lib:host
   ```
   本次（2026-09-02 rebase 到 0.1.2-alpha.5）清过 9 个：`client/runtime`、`code-runtime-python`、`examples/acp-demo`、`examples/agent-spine-demo`、`examples/jsonrpc-demo`、`host/apiproxy`、`session-persistence-sqlite`、`tool-subagent-report`、`test-support/acp-snapshot`。
+- **插件契约体检（rebase 后自动触发）**：官方删 API（如 0.1.2-alpha.1 删 dsh-settings 具名导出）会让存量社区插件"启用即崩宿主"。`.git/dsh-hooks/post-rewrite` 会在每次 rebase/amend 完成后自动跑 `plugin-compat-check`（本机安装，见 `kitesb/dsh-framework/SETUP.md` §二·五·3 的安装/重建指引），结果落在 `~/.dsh/plugin-compat-check-last.log`。**rebase 后先看它一眼**：报了"启用即崩宿主 N 个"就先别启用/更新那些插件，等作者适配（或按框架仓 SETUP 用 `--fix` 预写 disable）。该 hook 退出码恒 0、不阻断任何 git 操作，纯告警。
 
 ## 五、推送通道（实测约束，别浪费时间调 HTTPS 参数）
 
