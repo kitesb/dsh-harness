@@ -69,6 +69,12 @@ git push -u origin master                           # 需 danger-full-access（�
 
 ## 六、本地修复状态（已 rebase，哈希别用旧的）
 
+> **`package.json` 常驻本地改动 = 正常，别推**：`pnpm install`（本机 corepack/pnpm 11.23.0）会把
+> 根 `package.json` 的 `"packageManager": "pnpm@11.7.0"` 自动回写成 `pnpm@11.23.0`（本机实际版本）。
+> 这是**工具链副产物，不是功能修复**，且本机没网装不了 11.7.0——**约定：永远保持本地未提交（`M`），
+> 不要 commit/push 它**，否则等于给 fork 塞一个无意义的包管理器版本升级。每次 `git status` 看到
+> `M package.json` 属预期。
+
 | commit | 内容 | 备注 |
 |---|---|---|
 | `cbdaf6ea15` | `fix(llm-deepseek)`：guard empty id/name | 官方自修 delta 层；本 commit 只剩官方缺的 closeBlock 降级 + serialize 过滤 |
