@@ -12,8 +12,9 @@
  */
 
 import { writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { FiberState, type Context } from '@deepseek-ai/cordis'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -158,6 +159,30 @@ async function composeProfile(
   patchFiles: readonly string[],
 ): Promise<ComposedProfile> {
   const profile = prepareProfile(name)
+
+  // ── Pre-boot plugin-compat-check：在 bundle/patch 层加载前扫描并交互禁用坏插件 ──
+  // 脚本路径查找策略：
+  //   1. 环境变量 DSH_COMPAT_CHECK → 显式指定（跨目录布局通用，推荐新机器使用）
+  //   2. 环境变量 DSH_FRAMEWORK_ROOT → 指向 dsh-framework 仓根
+  //   3. 默认：假定 dsh-framework 与本仓为同级目录（用户惯用布局：../deepseek-harness-conversation）
+  try {
+    let compatCheckPath = process.env.DSH_COMPAT_CHECK
+    if (!compatCheckPath) {
+      const fwRoot = process.env.DSH_FRAMEWORK_ROOT ?? join(dirname(INSTALL_ANCHOR), '..', '..', '..', 'deepseek-harness-conversation')
+      compatCheckPath = join(fwRoot, 'companion', 'skills', 'plugin-compat-check', 'plugin-compat-check.mjs')
+    }
+    const result = spawnSync(process.execPath, [compatCheckPath, '--profile', profile.dir, '--interactive'], {
+      stdio: 'inherit',
+      timeout: 30000,
+    })
+    if (result.status !== 0 && result.status !== null) {
+      console.warn(`[dsh] plugin-compat-check 退出码 ${result.status}（非致命，继续启动）`)
+    }
+  } catch (e) {
+    // compat-check 不可用不阻塞启动（非致命）
+    console.warn(`[dsh] plugin-compat-check 不可用：${(e as Error).message}（跳过，继续启动）`)
+  }
+
   await healProfilesModuleFallback({ installAnchor: INSTALL_ANCHOR, profile })
   const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
   const overlays = patchFiles.flatMap(file => loadOverlayPatches(NAME, resolve(file)))
