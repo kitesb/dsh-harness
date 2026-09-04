@@ -80,5 +80,6 @@ git push -u origin master                           # 需 danger-full-access（�
 |---|---|---|
 | `cbdaf6ea15` | `fix(llm-deepseek)`：guard empty id/name | 官方自修 delta 层；本 commit 只剩官方缺的 closeBlock 降级 + serialize 过滤 |
 | `41637ef92c` | `fix(sandbox)`：windows-acl runner `--import` 传 file:// URL | 官方未修（0.1.2-alpha.5 仍裸 `tsx/esm`）；两臂实测 |
+| 未提交 | `profile-boot.ts` composeProfile() 前置 `plugin-compat-check --interactive` | 启动时自动体检→坏插件用户选择→写 managed block，根治"装完重启→崩→修→崩"死循环。上游 rebase 时此 diff 可能冲突，保留 fork 侧。依赖 `dsh-framework` 仓的 compat-check 脚本（路径见框架仓 SETUP §二·五·7）
 
 > 本 SETUP.md 是 fork 私有文档（未 PR 上游），rebase 官方时若与上游文件冲突可安全丢弃本文件的冲突侧。
