@@ -83,3 +83,5 @@ git push -u origin master                           # 需 danger-full-access（�
 | 未提交 | `profile-boot.ts` composeProfile() 前置 `plugin-compat-check --interactive` | 启动时自动体检→坏插件用户选择→写 managed block，根治"装完重启→崩→修→崩"死循环。上游 rebase 时此 diff 可能冲突，保留 fork 侧。依赖 `dsh-framework` 仓的 compat-check 脚本（路径见框架仓 SETUP §二·五·7）
 
 > 本 SETUP.md 是 fork 私有文档（未 PR 上游），rebase 官方时若与上游文件冲突可安全丢弃本文件的冲突侧。
+
+> **环境类踩坑速查**：本仓相关的操作问题（推送通道、pnpm 对账、compat-check 体检、GitHub 镜像安装等）的**修法**统一收录在框架仓 `kitesb/dsh-framework/LESSONS.md`（换机器后若某步卡住，先 grep 现象关键词定位）。
