@@ -115,6 +115,12 @@ git push -u origin master                           # 需 danger-full-access（�
 - **A. 关掉**：仓库 Settings → Actions → General → Actions permissions → **Disable actions**。
   个人镜像仓不需要云端 CI——本地已有验证门（lefthook pre-push typecheck + 目标 vitest 套件 +
   rebase 后真启动冒烟，见 §四）。想跑随时再开。
+  **✅ 2026-09-14 已执行并实证**：关闭后推空提交 `ea6552c556` 探针，GitHub runs 列表**零新增**
+  （对照：关闭前 05:52 UTC 的 push `031c42daf3` 仍触发了全套 5 个 workflow）。注意：关闭**不会**
+  追杀已在队列/在跑的旧 run（031c42d 的 CI master 长时间 queued、Sandbox in_progress 属预期，
+  跑完或队列超时自灭；碍眼可去 Actions 页手动 Cancel）。另：workflow state API 仍显示
+  "active" 属正常——仓库级总开关不写进单个 workflow 的 state 字段，匿名也读不了 permissions API，
+  **判"关没关"唯一可靠证据就是探针 push 后 runs 零新增**。
 - B. 逐个禁用吵闹的 workflow（Actions 页选 workflow → ⋯ → Disable）——22 个里挑红叉，打地鼠。
 - ~~C. 配 secret~~：**别**——那会让每次 push 真烧 DeepSeek API 额度跑 e2e（官方 key 2026-09-04
   起额度已失效），且 macOS darwin leg 该红还是红（Sandbox 的 darwin parity 全量单测在本 fork 红，
