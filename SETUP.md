@@ -49,6 +49,7 @@ git push -u origin master                           # 需 danger-full-access（�
 ## 四、rebase 后必做：build:lib:host + 僵尸包清理
 
 - `pnpm install` 之后**必须** `pnpm run build:lib:host`，否则新包的 `lib/` 没产物 → `workspace-write` 下 shell 工具崩（`Cannot find module '...win32-process/lib/index.js'`）。
+- **⚠️ build:lib:host 只够宿主面，web GUI 还要全量 build（2026-09-14 事故修订）**：rebase 到 0.1.5-rc.2 后只跑 `build:lib:host`，启动 web 报 "client bundles not found"——`packages/client/ui-open-in-app`、`packages/api/workspace-files`、`packages/client/resources`、`ui-sidebar-right/documentpreview/files` 等 6 个 `lib\client.js` 只有 `pnpm run build`（全量）才产出。**rebase 后标准序：`pnpm install` → `pnpm run build`（全量）→ 冒烟实测一次真实启动（`pnpm dsh --profile web` 后台起+杀），不是只 `--dump-config`**。也别单独跑 `pnpm run clean`（会把 client bundle 清掉，回到同一坑）。
 - **僵尸包陷阱**：上游删除/迁移包时，git 只删 `src/`，被 `.gitignore` 的 `lib/` 原地残留 → tsdown 扫 workspace 捡到旧 `lib/types` 报 `MISSING_EXPORT: "... 不是由 @deepseek-ai/xxx 导出"`。
   识别与清理：
   ```powershell
