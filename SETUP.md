@@ -93,3 +93,30 @@ git push -u origin master                           # 需 danger-full-access（�
 > 本 SETUP.md 是 fork 私有文档（未 PR 上游），rebase 官方时若与上游文件冲突可安全丢弃本文件的冲突侧。
 
 > **环境类踩坑速查**：本仓相关的操作问题（推送通道、pnpm 对账、compat-check 体检、GitHub 镜像安装等）的**修法**统一收录在框架仓 `kitesb/dsh-framework/LESSONS.md`（换机器后若某步卡住，先 grep 现象关键词定位）。
+
+## 七、fork 的 GitHub Actions：默认禁用是有理由的，别点"启用"（2026-09-14 实测）
+
+**现象**：push 到 origin/master 后 Actions 页一片红叉——`E2E (real DeepSeek API)` 报
+`DEEPSEEK_API_KEY is empty ... Configure the repo secret DEEPSEEK_API_KEY_EXTERNAL`；
+`CI master` 的 python-runtime、`Sandbox` 的 macOS leg 同理。
+
+**根因**：官方 22 个 workflow 是给官方仓设计的：
+- `e2e.yml` 在可信事件（push master）上**故意 fail-loud**：secret 缺失会让 e2e 套件自跳过 =
+  "假绿"（false green），官方宁可红。而 **GitHub fork 不继承 secrets**——本 fork 永远不会有这个 key。
+- `ci-master.yml` 的 python-runtime job 消费同一 secret（`build-exe-for-python-sdk.yml` 预检同款
+  fail-loud），开了必红。
+
+**为什么 09-14 之前从没见过**：GitHub 对 fork 仓**默认禁用 Actions**（Actions 页有
+"I understand my workflows, go ahead and enable them" 横幅）。2026-09-14 横幅被点掉后，
+当天的 push 才开始触发 CI（API 实证：fork 的 Actions 历史里 09-14 之前零 run，
+09-03 建仓、09-07/09-11 的 push 都没跑过）。
+
+**处置（推荐 A）**：
+- **A. 关掉**：仓库 Settings → Actions → General → Actions permissions → **Disable actions**。
+  个人镜像仓不需要云端 CI——本地已有验证门（lefthook pre-push typecheck + 目标 vitest 套件 +
+  rebase 后真启动冒烟，见 §四）。想跑随时再开。
+- B. 逐个禁用吵闹的 workflow（Actions 页选 workflow → ⋯ → Disable）——22 个里挑红叉，打地鼠。
+- ~~C. 配 secret~~：**别**——那会让每次 push 真烧 DeepSeek API 额度跑 e2e（官方 key 2026-09-04
+  起额度已失效），且 macOS darwin leg 该红还是红（Sandbox 的 darwin parity 全量单测在本 fork 红，
+  上游 master 8-13 后没跑过该 workflow、无法对比判断是否 0.1.5 既有问题；job 日志需鉴权未读到
+  具体测试名，属未定项，本地 Windows 门全绿）。
