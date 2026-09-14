@@ -32,7 +32,9 @@ git config remote.upstream.pushurl DISABLED-official-repo
 ## 三、跟上官方最新（rebase 工作流）
 
 ```powershell
-git fetch upstream
+git fetch upstream        # ⚠️ 2026-09-14 实测 github.com:443 直连被 DLP 掐（Could not connect），
+                          # 改走 ssh 通道一次性 fetch：
+                          # git fetch ssh://git@ssh.github.com:443/deepseek-ai/DeepSeek-Harness.git master
 git rebase --onto upstream/master <旧基点> master   # 本地修复重放到官方最新
 pnpm install                                        # 官方依赖树变了必须重跑
 pnpm run build:lib:host                             # 见第四节，rebase 后必做
@@ -41,6 +43,7 @@ git push -u origin master                           # 需 danger-full-access（�
 
 - **不要 squash / 删历史**：fork 和官方共享历史是你能无缝同步的根基，压掉就断了。
 - rebase 冲突时**先核对官方是否已自研同类修复**——本次 llm-deepseek 就撞上：官方已用 `acceptIdentity()` 修了 delta 层，只保留官方缺的层（closeBlock 降级 + serialize 过滤），并把 `CallId` 改名成官方 `ToolCallId`。
+- **rebase 前先 `git show FETCH_HEAD:<file>` 核对官方是否已修本地持有的修复**（2026-09-14 例：官方仍缺 closeBlock 降级/serialize 过滤、sandbox dev 臂仍裸 `tsx/esm`，两个修复都保留重放；唯一冲突在 profile-boot.ts——官方改了 `prepareProfile` 签名，解法=官方新签名 + 保留 compat-check 块）。
 - rebase 需干净工作树：本地未提交改动用 `git -c rebase.autoStash=true` 自动暂存/回贴，**别手动 stash 别人的本地改动**。
 
 ## 四、rebase 后必做：build:lib:host + 僵尸包清理
@@ -68,7 +71,11 @@ git push -u origin master                           # 需 danger-full-access（�
 
 **唯一可行**：会话升到 `danger-full-access`（绕过沙箱）→ SSH over 443 push（`~/.ssh/id_rsa` 已绑 GitHub，`ssh -T git@ssh.github.com` 验证过）。推完降回。协作空间仓 `kitesb/dsh-framework` 的推送也是同一套。
 
-## 六、本地修复状态（已 rebase，哈希别用旧的）
+## 六、本地修复状态（2026-09-14 已 rebase 到官方 0.1.5-rc.2，哈希别用旧的）
+
+> 当前基点：upstream master `c291e7961a`（dsh v0.1.5-rc.2，2026-09-10 发布）。
+> 2026-09-14 rebase：1593 commit 大跨度重放，8/8 成功；唯一冲突 profile-boot.ts（`prepareProfile` 签名变化，手工合入官方新签名 + 保留 compat-check 块）。
+> rebase 后验证：serialize 57 + translate 42 全绿；sandbox-windows-acl runner+provider-chain 16 全绿；`pnpm dsh --profile web --dump-config` exit 0；无僵尸包；`packages/sandbox/sandbox-local` 测试套已被官方移出 Windows 车道（vitest.config.ts `windowsUnsupportedPackages`），Windows 侧验证靠 runner/provider-chain spec + 运行时实测。
 
 > **`package.json` 常驻本地改动 = 正常，别推**：`pnpm install`（本机 corepack/pnpm 11.23.0）会把
 > 根 `package.json` 的 `"packageManager": "pnpm@11.7.0"` 自动回写成 `pnpm@11.23.0`（本机实际版本）。
@@ -78,9 +85,9 @@ git push -u origin master                           # 需 danger-full-access（�
 
 | commit | 内容 | 备注 |
 |---|---|---|
-| `cbdaf6ea15` | `fix(llm-deepseek)`：guard empty id/name | 官方自修 delta 层；本 commit 只剩官方缺的 closeBlock 降级 + serialize 过滤 |
-| `41637ef92c` | `fix(sandbox)`：windows-acl runner `--import` 传 file:// URL | 官方未修（0.1.2-alpha.5 仍裸 `tsx/esm`）；两臂实测 |
-| 未提交 | `profile-boot.ts` composeProfile() 前置 `plugin-compat-check --interactive` | 启动时自动体检→坏插件用户选择→写 managed block，根治"装完重启→崩→修→崩"死循环。上游 rebase 时此 diff 可能冲突，保留 fork 侧。依赖 `dsh-framework` 仓的 compat-check 脚本（路径见框架仓 SETUP §二·五·7）
+| `cae3803094` | `fix(llm-deepseek)`：guard empty id/name | 官方已修 delta 层（`acceptIdentity`）；本 commit 只剩官方缺的 closeBlock 降级 + serialize 过滤（0.1.5-rc.2 仍缺，2026-09-14 核实） |
+| `15a73c9d91` | `fix(sandbox)`：windows-acl runner `--import` 传 file:// URL | 官方未修（0.1.5-rc.2 dev 臂仍裸 `tsx/esm`，2026-09-14 核实）；build 后生产臂 runner.js 在位 |
+| `196db1d1ee` | `feat(cli)`：composeProfile 前置 `plugin-compat-check --interactive` | 启动时自动体检→坏插件用户选择→写 managed block，根治"装完重启→崩→修→崩"死循环。2026-09-14 rebase 冲突已手工合入（`prepareProfile` 新签名）。依赖 `dsh-framework` 仓的 compat-check 脚本（路径见框架仓 SETUP §二·五·7）
 
 > 本 SETUP.md 是 fork 私有文档（未 PR 上游），rebase 官方时若与上游文件冲突可安全丢弃本文件的冲突侧。
 
