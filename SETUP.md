@@ -72,23 +72,32 @@ git push -u origin master                           # 需 danger-full-access（�
 
 **唯一可行**：会话升到 `danger-full-access`（绕过沙箱）→ SSH over 443 push（`~/.ssh/id_rsa` 已绑 GitHub，`ssh -T git@ssh.github.com` 验证过）。推完降回。协作空间仓 `kitesb/dsh-framework` 的推送也是同一套。
 
-## 六、本地修复状态（2026-09-14 已 rebase 到官方 0.1.5-rc.2，哈希别用旧的）
+## 六、本地修复状态（2026-10-04 已 rebase 到官方 0.2.1-alpha.1，哈希别用旧的）
 
-> 当前基点：upstream master `c291e7961a`（dsh v0.1.5-rc.2，2026-09-10 发布）。
-> 2026-09-14 rebase：1593 commit 大跨度重放，8/8 成功；唯一冲突 profile-boot.ts（`prepareProfile` 签名变化，手工合入官方新签名 + 保留 compat-check 块）。
-> rebase 后验证：serialize 57 + translate 42 全绿；sandbox-windows-acl runner+provider-chain 16 全绿；`pnpm dsh --profile web --dump-config` exit 0；无僵尸包；`packages/sandbox/sandbox-local` 测试套已被官方移出 Windows 车道（vitest.config.ts `windowsUnsupportedPackages`），Windows 侧验证靠 runner/provider-chain spec + 运行时实测。
+> 当前基点：upstream master `5badb15009`（dsh v0.2.1-alpha.1，2026-10-03）。
+> **2026-10-04 rebase**：跨度 3959+266 commit，13 个本地提交 → **保留 11 / 丢弃 2**；
+> 唯一冲突 `apps/cli/src/profile-boot.ts`（官方把 `healProfilesModuleFallback` 换成 `createRuntimeResolution`，
+> 且 `composeProfile` 新增 `resolvedProfile` 参数 —— 手工合入官方新签名 + 保留 compat-check 块）。
+> rebase 后必做序列（本次实测）：`pnpm install` → **清理僵尸包** → `pnpm run build`（全量）→ 插件升级 → 真启动冒烟。
+> 本次验证：`pnpm run build` 成功（355 个 client 产物）；`dsh --profile web --dump-config` exit 0；
+> `dsh web` 真启动 OK（市场页 / review-classroom 均 200）；`bsk doctor` 八项 ok；archify doctor 20/20；
+> lefthook pre-push 的 typecheck 通过。
+>
+> **僵尸包清单（本次清理，官方已删包但本地残留 lib/）**：`code-runtime/code-runtime`、
+> `code-runtime/code-runtime-worker-thread`、`e2b/{e2b,fs-e2b,subprocess-e2b}`、
+> `experimental/{agent-team-web-profile,code-runtime-python}`、`fs/tool-present`、`preset/agent-presets`、
+> `runtime-diagnostics/invariants`、`settings/settings-file`、`workflow/workflow-worker-thread`（共 12 个）。
+> 不清会以 `[MISSING_EXPORT] "SettingsProvider" is not exported by "../settings/src/index.ts"` 卡住 build:lib。
 
-> **`package.json` 常驻本地改动 = 正常，别推**：`pnpm install`（本机 corepack/pnpm 11.23.0）会把
-> 根 `package.json` 的 `"packageManager": "pnpm@11.7.0"` 自动回写成 `pnpm@11.23.0`（本机实际版本）。
-> 这是**工具链副产物，不是功能修复**，且本机没网装不了 11.7.0——**约定：永远保持本地未提交（`M`），
-> 不要 commit/push 它**，否则等于给 fork 塞一个无意义的包管理器版本升级。每次 `git status` 看到
-> `M package.json` 属预期。
+> **`package.json` 是否常驻本地改动**：本机 corepack 已钉 `pnpm@11.7.0`（与仓库 `packageManager` 一致），
+> 所以**不再出现**旧文档记的 `packageManager` 回写现象 —— 现在看到 `M package.json` 反而应当查原因，
+> 不要再当成"预期副产物"放过。
 
 | commit | 内容 | 备注 |
 |---|---|---|
-| `cae3803094` | `fix(llm-deepseek)`：guard empty id/name | 官方已修 delta 层（`acceptIdentity`）；本 commit 只剩官方缺的 closeBlock 降级 + serialize 过滤（0.1.5-rc.2 仍缺，2026-09-14 核实） |
-| `15a73c9d91` | `fix(sandbox)`：windows-acl runner `--import` 传 file:// URL | 官方未修（0.1.5-rc.2 dev 臂仍裸 `tsx/esm`，2026-09-14 核实）；build 后生产臂 runner.js 在位 |
-| `196db1d1ee` | `feat(cli)`：composeProfile 前置 `plugin-compat-check --interactive` | 启动时自动体检→坏插件用户选择→写 managed block，根治"装完重启→崩→修→崩"死循环。2026-09-14 rebase 冲突已手工合入（`prepareProfile` 新签名）。依赖 `dsh-framework` 仓的 compat-check 脚本（路径见框架仓 SETUP §二·五·7）
+| ~~`cae3803094`~~ | ~~`fix(llm-deepseek)`：guard empty id/name~~ | **2026-10-04 已丢弃**：官方把该包流式层整体重写（Messages API + replay），目标代码路径已不存在；新代码对空 identity 直接 `malformed(\"empty tool identity\")` |
+| ~~`15a73c9d91`~~ | ~~`fix(sandbox)`：windows-acl runner `--import` 传 file:// URL~~ | **2026-10-04 已丢弃**：官方改用 `data:text/javascript,...` 注入 tsx 注册（并注入 tsconfig），比原补丁更完整 |
+| `b91e2ca6b1`（rebase 后新哈希） | `feat(cli)`：composeProfile 前置 `plugin-compat-check --interactive` | 启动时自动体检→坏插件用户选择→写 managed block，根治"装完重启→崩→修→崩"死循环。2026-09-14 rebase 冲突已手工合入（`prepareProfile` 新签名）。依赖 `dsh-framework` 仓的 compat-check 脚本（路径见框架仓 SETUP §二·五·7）
 
 > 本 SETUP.md 是 fork 私有文档（未 PR 上游），rebase 官方时若与上游文件冲突可安全丢弃本文件的冲突侧。
 
